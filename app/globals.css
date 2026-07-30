@@ -430,6 +430,32 @@ button {
     0 1px 4px rgba(5, 37, 28, 0.86);
 }
 
+.layer-swatch.villages::before {
+  content: "村";
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--swatch-color);
+  font-size: 12px;
+  font-weight: 750;
+  text-shadow:
+    0 0 2px #15362c,
+    0 1px 4px rgba(5, 37, 28, 0.86);
+}
+
+.layer-swatch.roads::before {
+  inset: 11px 3px auto;
+  height: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--swatch-color);
+  box-shadow:
+    0 0 0 1px rgba(55, 46, 28, 0.62),
+    0 0 0 3px rgba(240, 180, 92, 0.13);
+  transform: rotate(-18deg);
+}
+
 .layer-copy {
   min-width: 0;
 }
@@ -881,6 +907,66 @@ button {
 .leaflet-container.place-layer-enabled.show-primary-place-labels
   .district-label {
   display: none;
+}
+
+.village-label-icon {
+  width: 0 !important;
+  height: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.village-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transform: translate(-3px, -50%);
+  pointer-events: none;
+}
+
+.village-label i {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(248, 238, 210, 0.92);
+  border-radius: 1px;
+  background: #d9c991;
+  box-shadow:
+    0 0 0 1.5px rgba(6, 32, 24, 0.7),
+    0 1px 3px rgba(0, 0, 0, 0.65);
+  transform: rotate(45deg);
+}
+
+.village-label b {
+  color: #f5eedb;
+  font-family:
+    "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  font-size: 9px;
+  font-weight: 620;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-shadow:
+    0 0 2px #05251c,
+    0 1px 3px #05251c,
+    0 0 5px rgba(5, 37, 28, 0.96);
+}
+
+.village-label-hamlet {
+  opacity: 0.78;
+}
+
+.village-label-hamlet b {
+  font-size: 8px;
+  font-weight: 560;
+}
+
+.village-label-hamlet i {
+  width: 3px;
+  height: 3px;
 }
 
 .point-label,

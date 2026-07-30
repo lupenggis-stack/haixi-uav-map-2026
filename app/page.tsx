@@ -63,7 +63,48 @@ type PlaceCollection = {
   features: PlaceFeature[];
 };
 
-type OverlayKey = "points" | "places" | "counties" | "cities" | "provinces";
+type RoadFeature = {
+  type: "Feature";
+  geometry: GeoJSON.Geometry;
+  properties: {
+    roadClass: "national" | "regional" | "local";
+    highway: string;
+    name: string;
+    ref: string;
+  };
+};
+
+type RoadCollection = {
+  type: "FeatureCollection";
+  features: RoadFeature[];
+};
+
+type VillageFeature = {
+  type: "Feature";
+  id: string;
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  properties: {
+    name: string;
+    level: "village" | "hamlet";
+  };
+};
+
+type VillageCollection = {
+  type: "FeatureCollection";
+  features: VillageFeature[];
+};
+
+type OverlayKey =
+  | "points"
+  | "places"
+  | "villages"
+  | "roads"
+  | "counties"
+  | "cities"
+  | "provinces";
 type BaseMapKey = "bing" | "osm";
 
 const INITIAL_BOUNDS: [[number, number], [number, number]] = [
@@ -88,6 +129,18 @@ const LAYER_INFO: Array<{
     label: "地名标注",
     detail: "7 处市县驻地 · 31 处乡镇",
     color: "#dfd855",
+  },
+  {
+    key: "villages",
+    label: "村庄名称",
+    detail: "124 处村庄与居民点",
+    color: "#f8eed2",
+  },
+  {
+    key: "roads",
+    label: "道路网络",
+    detail: "国省干线 · 县乡道路",
+    color: "#f0b45c",
   },
   {
     key: "counties",
@@ -177,6 +230,8 @@ export default function Home() {
   const [overlays, setOverlays] = useState<Record<OverlayKey, boolean>>({
     points: true,
     places: true,
+    villages: true,
+    roads: true,
     counties: true,
     cities: false,
     provinces: false,
@@ -209,6 +264,8 @@ export default function Home() {
           L,
           pointResponse,
           placeResponse,
+          villageResponse,
+          roadResponse,
           countyResponse,
           cityResponse,
           provinceResponse,
@@ -216,6 +273,8 @@ export default function Home() {
           import("leaflet"),
           fetch("/data/points.geojson"),
           fetch("/data/places.geojson"),
+          fetch("/data/villages.geojson"),
+          fetch("/data/roads.geojson"),
           fetch("/data/counties.geojson"),
           fetch("/data/cities.geojson"),
           fetch("/data/provinces.geojson"),
@@ -224,6 +283,8 @@ export default function Home() {
         if (
           !pointResponse.ok ||
           !placeResponse.ok ||
+          !villageResponse.ok ||
+          !roadResponse.ok ||
           !countyResponse.ok ||
           !cityResponse.ok ||
           !provinceResponse.ok
@@ -231,20 +292,31 @@ export default function Home() {
           throw new Error("地图数据读取失败");
         }
 
-        const [pointData, placeData, countyData, cityData, provinceData] =
-          (await Promise.all([
-            pointResponse.json(),
-            placeResponse.json(),
-            countyResponse.json(),
-            cityResponse.json(),
-            provinceResponse.json(),
-          ])) as [
-            PointCollection,
-            PlaceCollection,
-            BoundaryCollection,
-            BoundaryCollection,
-            BoundaryCollection,
-          ];
+        const [
+          pointData,
+          placeData,
+          villageData,
+          roadData,
+          countyData,
+          cityData,
+          provinceData,
+        ] = (await Promise.all([
+          pointResponse.json(),
+          placeResponse.json(),
+          villageResponse.json(),
+          roadResponse.json(),
+          countyResponse.json(),
+          cityResponse.json(),
+          provinceResponse.json(),
+        ])) as [
+          PointCollection,
+          PlaceCollection,
+          VillageCollection,
+          RoadCollection,
+          BoundaryCollection,
+          BoundaryCollection,
+          BoundaryCollection,
+        ];
 
         if (cancelled || !mapContainerRef.current) return;
 
@@ -274,7 +346,8 @@ export default function Home() {
           minZoom: 1,
           maxZoom: 18,
           maxNativeZoom: 18,
-          attribution: "影像 © Microsoft Bing · 地名 © OpenStreetMap contributors",
+          attribution:
+            "影像 © Microsoft Bing · 道路与地名 © OpenStreetMap contributors",
           crossOrigin: true,
         });
         bing.getTileUrl = ({ x, y, z }) => {
@@ -341,6 +414,52 @@ export default function Home() {
           },
         });
 
+        map.createPane("roads");
+        const roadPane = map.getPane("roads");
+        if (roadPane) {
+          roadPane.style.zIndex = "360";
+          roadPane.style.pointerEvents = "none";
+        }
+
+        const createRoadPair = (
+          roadClass: RoadFeature["properties"]["roadClass"],
+          casingStyle: { color: string; weight: number; opacity: number },
+          surfaceStyle: { color: string; weight: number; opacity: number },
+        ) => {
+          const filter = (feature?: GeoJSON.Feature) =>
+            feature?.properties?.roadClass === roadClass;
+          const casing = L.geoJSON(roadData as GeoJSON.GeoJsonObject, {
+            pane: "roads",
+            interactive: false,
+            filter,
+            style: casingStyle,
+          });
+          const surface = L.geoJSON(roadData as GeoJSON.GeoJsonObject, {
+            pane: "roads",
+            interactive: false,
+            filter,
+            style: surfaceStyle,
+          });
+          return L.layerGroup([casing, surface]);
+        };
+
+        const nationalRoads = createRoadPair(
+          "national",
+          { color: "#4d3e26", weight: 4.2, opacity: 0.78 },
+          { color: "#f0b45c", weight: 2.5, opacity: 0.95 },
+        );
+        const regionalRoads = createRoadPair(
+          "regional",
+          { color: "#504934", weight: 3.1, opacity: 0.66 },
+          { color: "#eadb9f", weight: 1.7, opacity: 0.9 },
+        );
+        const localRoads = createRoadPair(
+          "local",
+          { color: "#3f4439", weight: 2.1, opacity: 0.46 },
+          { color: "#f2ead3", weight: 1, opacity: 0.72 },
+        );
+        const roadLayers = L.layerGroup([nationalRoads]);
+
         map.createPane("placeLabels");
         const placePane = map.getPane("placeLabels");
         if (placePane) {
@@ -378,6 +497,34 @@ export default function Home() {
 
         const placeLabels = L.layerGroup([primaryPlaceLabels]);
 
+        const villageLabels = L.layerGroup();
+        const hamletLabels = L.layerGroup();
+
+        villageData.features.forEach((feature) => {
+          const [longitude, latitude] = feature.geometry.coordinates;
+          const level = feature.properties.level;
+          const icon = L.divIcon({
+            className: "village-label-icon",
+            html: `
+              <span class="village-label village-label-${level}">
+                <i aria-hidden="true"></i>
+                <b>${escapeHtml(feature.properties.name)}</b>
+              </span>
+            `,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
+          });
+          const marker = L.marker([latitude, longitude], {
+            icon,
+            pane: "placeLabels",
+            interactive: false,
+            keyboard: false,
+          });
+          marker.addTo(level === "village" ? villageLabels : hamletLabels);
+        });
+
+        const villageLayer = L.layerGroup();
+
         const pointMarkers = L.geoJSON(pointData as GeoJSON.GeoJsonObject, {
           pointToLayer: (feature, latlng) => {
             const marker = L.circleMarker(latlng, {
@@ -412,24 +559,52 @@ export default function Home() {
         layerRefs.current = {
           points: pointMarkers,
           places: placeLabels,
+          villages: villageLayer,
+          roads: roadLayers,
           counties,
           cities,
           provinces,
         };
+        roadLayers.addTo(map);
         counties.addTo(map);
         placeLabels.addTo(map);
+        villageLayer.addTo(map);
         pointMarkers.addTo(map);
 
         const updateLabelVisibility = () => {
           const zoom = map.getZoom();
           const container = map.getContainer();
           container.classList.toggle("show-primary-place-labels", zoom >= 7);
-          container.classList.toggle("show-point-labels", zoom >= 8);
+          container.classList.toggle("show-point-labels", zoom >= 10);
+          if (zoom >= 6 && !roadLayers.hasLayer(regionalRoads)) {
+            roadLayers.addLayer(regionalRoads);
+          }
+          if (zoom < 6 && roadLayers.hasLayer(regionalRoads)) {
+            roadLayers.removeLayer(regionalRoads);
+          }
+          if (zoom >= 8 && !roadLayers.hasLayer(localRoads)) {
+            roadLayers.addLayer(localRoads);
+          }
+          if (zoom < 8 && roadLayers.hasLayer(localRoads)) {
+            roadLayers.removeLayer(localRoads);
+          }
           if (zoom >= 8 && !placeLabels.hasLayer(townPlaceLabels)) {
             placeLabels.addLayer(townPlaceLabels);
           }
           if (zoom < 8 && placeLabels.hasLayer(townPlaceLabels)) {
             placeLabels.removeLayer(townPlaceLabels);
+          }
+          if (zoom >= 9 && !villageLayer.hasLayer(villageLabels)) {
+            villageLayer.addLayer(villageLabels);
+          }
+          if (zoom < 9 && villageLayer.hasLayer(villageLabels)) {
+            villageLayer.removeLayer(villageLabels);
+          }
+          if (zoom >= 10 && !villageLayer.hasLayer(hamletLabels)) {
+            villageLayer.addLayer(hamletLabels);
+          }
+          if (zoom < 10 && villageLayer.hasLayer(hamletLabels)) {
+            villageLayer.removeLayer(hamletLabels);
           }
         };
         updateLabelVisibility();
@@ -556,7 +731,7 @@ export default function Home() {
               <span className="eyebrow">项目空间分布</span>
               <h2>需求点位总览</h2>
               <p>
-                展示无人机及机巢拟部署位置、行政区边界与卫星影像。点击点位可查看需求详情。
+                展示无人机及机巢拟部署位置、道路网络、行政区边界与卫星影像。点击点位可查看需求详情。
               </p>
             </div>
 
@@ -692,7 +867,7 @@ export default function Home() {
             </section>
           </div>
           <footer className="panel-footer">
-            <span>WGS 84 · 地名 © OpenStreetMap</span>
+            <span>WGS 84 · 道路/地名 © OpenStreetMap</span>
             <span>边界仅供项目展示参考</span>
           </footer>
         </aside>

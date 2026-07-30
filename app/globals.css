@@ -415,6 +415,21 @@ button {
   box-shadow: 0 0 0 1px rgba(255, 23, 75, 0.25);
 }
 
+.layer-swatch.places::before {
+  content: "名";
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--swatch-color);
+  font-family: "Songti SC", STSong, serif;
+  font-size: 14px;
+  font-weight: 800;
+  text-shadow:
+    0 0 2px #15362c,
+    0 1px 4px rgba(5, 37, 28, 0.86);
+}
+
 .layer-copy {
   min-width: 0;
 }
@@ -771,6 +786,100 @@ button {
 }
 
 .district-label::before {
+  display: none;
+}
+
+.place-label-icon {
+  width: 0 !important;
+  height: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.place-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transform: translate(-4px, -50%);
+  pointer-events: none;
+}
+
+.place-label i {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border: 1.5px solid #f6edac;
+  border-radius: 50%;
+  background: #173d32;
+  box-shadow:
+    0 0 0 2px rgba(6, 32, 24, 0.52),
+    0 1px 4px rgba(0, 0, 0, 0.65);
+}
+
+.place-label i::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  border-radius: 50%;
+  background: #dfd855;
+}
+
+.place-label b {
+  font-family:
+    "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  color: #f0e66c;
+  text-shadow:
+    0 0 2px #05251c,
+    0 1px 3px #05251c,
+    0 0 6px rgba(5, 37, 28, 0.96);
+}
+
+.place-label-town {
+  gap: 5px;
+}
+
+.place-label-town i {
+  width: 5px;
+  height: 5px;
+  border-width: 1px;
+  border-color: rgba(248, 238, 210, 0.92);
+  background: rgba(12, 53, 41, 0.95);
+}
+
+.place-label-town i::after {
+  inset: 1px;
+  background: #f8eed2;
+}
+
+.place-label-town b {
+  color: #f8eed2;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+  text-shadow:
+    0 0 2px #05251c,
+    0 1px 3px #05251c,
+    0 0 5px rgba(5, 37, 28, 0.94);
+}
+
+.leaflet-container.place-layer-enabled.show-primary-place-labels
+  .place-label-primary,
+.leaflet-container.place-layer-enabled.show-primary-place-labels
+  .place-label-town {
+  display: inline-flex;
+}
+
+.leaflet-container.place-layer-enabled.show-primary-place-labels
+  .district-label {
   display: none;
 }
 

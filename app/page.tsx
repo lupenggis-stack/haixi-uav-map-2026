@@ -44,7 +44,26 @@ type BoundaryCollection = {
   }>;
 };
 
-type OverlayKey = "points" | "counties" | "cities" | "provinces";
+type PlaceFeature = {
+  type: "Feature";
+  id: string;
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  properties: {
+    name: string;
+    level: "primary" | "town";
+    place: string;
+  };
+};
+
+type PlaceCollection = {
+  type: "FeatureCollection";
+  features: PlaceFeature[];
+};
+
+type OverlayKey = "points" | "places" | "counties" | "cities" | "provinces";
 type BaseMapKey = "bing" | "osm";
 
 const INITIAL_BOUNDS: [[number, number], [number, number]] = [
@@ -63,6 +82,12 @@ const LAYER_INFO: Array<{
     label: "无人机需求点位",
     detail: "64 个已定位点位",
     color: "#ff174b",
+  },
+  {
+    key: "places",
+    label: "地名标注",
+    detail: "7 处市县驻地 · 31 处乡镇",
+    color: "#dfd855",
   },
   {
     key: "counties",
@@ -151,6 +176,7 @@ export default function Home() {
   const [baseMap, setBaseMap] = useState<BaseMapKey>("bing");
   const [overlays, setOverlays] = useState<Record<OverlayKey, boolean>>({
     points: true,
+    places: true,
     counties: true,
     cities: false,
     provinces: false,
@@ -179,17 +205,25 @@ export default function Home() {
 
     const initializeMap = async () => {
       try {
-        const [L, pointResponse, countyResponse, cityResponse, provinceResponse] =
-          await Promise.all([
-            import("leaflet"),
-            fetch("/data/points.geojson"),
-            fetch("/data/counties.geojson"),
-            fetch("/data/cities.geojson"),
-            fetch("/data/provinces.geojson"),
-          ]);
+        const [
+          L,
+          pointResponse,
+          placeResponse,
+          countyResponse,
+          cityResponse,
+          provinceResponse,
+        ] = await Promise.all([
+          import("leaflet"),
+          fetch("/data/points.geojson"),
+          fetch("/data/places.geojson"),
+          fetch("/data/counties.geojson"),
+          fetch("/data/cities.geojson"),
+          fetch("/data/provinces.geojson"),
+        ]);
 
         if (
           !pointResponse.ok ||
+          !placeResponse.ok ||
           !countyResponse.ok ||
           !cityResponse.ok ||
           !provinceResponse.ok
@@ -197,14 +231,16 @@ export default function Home() {
           throw new Error("地图数据读取失败");
         }
 
-        const [pointData, countyData, cityData, provinceData] =
+        const [pointData, placeData, countyData, cityData, provinceData] =
           (await Promise.all([
             pointResponse.json(),
+            placeResponse.json(),
             countyResponse.json(),
             cityResponse.json(),
             provinceResponse.json(),
           ])) as [
             PointCollection,
+            PlaceCollection,
             BoundaryCollection,
             BoundaryCollection,
             BoundaryCollection,
@@ -238,7 +274,7 @@ export default function Home() {
           minZoom: 1,
           maxZoom: 18,
           maxNativeZoom: 18,
-          attribution: "影像 © Microsoft Bing",
+          attribution: "影像 © Microsoft Bing · 地名 © OpenStreetMap contributors",
           crossOrigin: true,
         });
         bing.getTileUrl = ({ x, y, z }) => {
@@ -305,6 +341,43 @@ export default function Home() {
           },
         });
 
+        map.createPane("placeLabels");
+        const placePane = map.getPane("placeLabels");
+        if (placePane) {
+          placePane.style.zIndex = "635";
+          placePane.style.pointerEvents = "none";
+        }
+
+        const primaryPlaceLabels = L.layerGroup();
+        const townPlaceLabels = L.layerGroup();
+
+        placeData.features.forEach((feature) => {
+          const [longitude, latitude] = feature.geometry.coordinates;
+          const level = feature.properties.level;
+          const icon = L.divIcon({
+            className: "place-label-icon",
+            html: `
+              <span class="place-label place-label-${level}">
+                <i aria-hidden="true"></i>
+                <b>${escapeHtml(feature.properties.name)}</b>
+              </span>
+            `,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
+          });
+          const marker = L.marker([latitude, longitude], {
+            icon,
+            pane: "placeLabels",
+            interactive: false,
+            keyboard: false,
+          });
+          marker.addTo(
+            level === "primary" ? primaryPlaceLabels : townPlaceLabels,
+          );
+        });
+
+        const placeLabels = L.layerGroup([primaryPlaceLabels]);
+
         const pointMarkers = L.geoJSON(pointData as GeoJSON.GeoJsonObject, {
           pointToLayer: (feature, latlng) => {
             const marker = L.circleMarker(latlng, {
@@ -338,15 +411,26 @@ export default function Home() {
 
         layerRefs.current = {
           points: pointMarkers,
+          places: placeLabels,
           counties,
           cities,
           provinces,
         };
         counties.addTo(map);
+        placeLabels.addTo(map);
         pointMarkers.addTo(map);
 
         const updateLabelVisibility = () => {
-          map.getContainer().classList.toggle("show-point-labels", map.getZoom() >= 8);
+          const zoom = map.getZoom();
+          const container = map.getContainer();
+          container.classList.toggle("show-primary-place-labels", zoom >= 7);
+          container.classList.toggle("show-point-labels", zoom >= 8);
+          if (zoom >= 8 && !placeLabels.hasLayer(townPlaceLabels)) {
+            placeLabels.addLayer(townPlaceLabels);
+          }
+          if (zoom < 8 && placeLabels.hasLayer(townPlaceLabels)) {
+            placeLabels.removeLayer(townPlaceLabels);
+          }
         };
         updateLabelVisibility();
         map.on("zoomend", updateLabelVisibility);
@@ -378,6 +462,9 @@ export default function Home() {
       if (overlays[key] && !isVisible) layer.addTo(map);
       if (!overlays[key] && isVisible) layer.removeFrom(map);
     });
+    map
+      .getContainer()
+      .classList.toggle("place-layer-enabled", overlays.places);
   }, [mapReady, overlays]);
 
   useEffect(() => {
@@ -605,7 +692,7 @@ export default function Home() {
             </section>
           </div>
           <footer className="panel-footer">
-            <span>数据坐标系 WGS 84</span>
+            <span>WGS 84 · 地名 © OpenStreetMap</span>
             <span>边界仅供项目展示参考</span>
           </footer>
         </aside>
